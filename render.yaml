@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: concord-group-trip-negotiator
+    env: node
+    plan: starter
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMMA_MODEL
+        value: gemma-4-26b-a4b-it
+      - key: GEMMA_API_KEY
+        sync: false # Set securely in Render dashboard
