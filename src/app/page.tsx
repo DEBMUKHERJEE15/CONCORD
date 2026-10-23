@@ -34,6 +34,8 @@ import { ExplanationCard } from "@/components/ExplanationCard";
 import { ConflictAnalysisBanner } from "@/components/ConflictAnalysisBanner";
 import { NegotiationControlsBar } from "@/components/NegotiationControlsBar";
 import { SatisfactionFairnessPanel } from "@/components/SatisfactionFairnessPanel";
+import { BudgetBreakdownCard } from "@/components/BudgetBreakdownCard";
+import { calculateTripBudget } from "@/lib/hotels/budget-calculator";
 import { ApiKeyModal } from "@/components/ApiKeyModal";
 import {
   Sparkles,
@@ -183,6 +185,22 @@ export default function ConcordPlatform() {
       selectBestCandidate(activeCandidates).best
     );
   }, [activeCandidates, selectedCandidateId]);
+
+  const candidateBudgetCalculation = useMemo(() => {
+    if (!currentSelectedCandidate) return null;
+    return calculateTripBudget({
+      travelerCount: trip.travelerCount,
+      roomCount: currentSelectedCandidate.roomCount || trip.roomCount,
+      departureDate: trip.departureDate,
+      returnDate: trip.returnDate,
+      sharedBudgetINR: trip.sharedBudgetINR,
+      selectedHotel: trip.selectedHotel,
+      fallbackHotelOffer: currentSelectedCandidate.hotel,
+      transportOffer: currentSelectedCandidate.transport,
+      activityOffers: currentSelectedCandidate.activities,
+      diningOffer: currentSelectedCandidate.dining,
+    });
+  }, [currentSelectedCandidate, trip]);
 
   const activeValidationReport: ValidationReport = useMemo(() => {
     if (negotiationData && negotiationData.selectedCandidateId === currentSelectedCandidate.id) {
@@ -448,6 +466,14 @@ export default function ConcordPlatform() {
               candidate={currentSelectedCandidate}
               travelers={travelers}
             />
+
+            {/* Exact Deterministic Budget Breakdown for Selected Candidate */}
+            {candidateBudgetCalculation && (
+              <BudgetBreakdownCard
+                budget={candidateBudgetCalculation}
+                sharedBudgetINR={trip.sharedBudgetINR}
+              />
+            )}
 
             {/* Agent 1 Results: Conflict Analysis Banner (when available) */}
             {negotiationData?.conflictAnalysis && (

@@ -67,7 +67,7 @@ const NegotiateRequestSchema = z.object({
     freeTextNotes: z.string().optional(),
     travelStyle: z.string(),
     interests: z.array(z.string()),
-  }),
+  }).passthrough(),
   travelers: z.array(TravelerSchema).min(1).max(10),
   roundNumber: z.number().int().min(1).max(3).optional().default(1),
   previousProposalId: z.string().optional(),

@@ -39,9 +39,12 @@ export function calculateItineraryCostsAndMetrics(
   dining: DiningPackageOffer
 ): ComputedItineraryMetrics {
   const nightsCount = computeNightsCount(trip.departureDate, trip.returnDate);
-  const roomCount = Math.ceil(trip.travelerCount / 2); // 2 persons per room standard
+  const roomCount = trip.roomCount ? Math.max(1, trip.roomCount) : Math.ceil(trip.travelerCount / 2); // user-specified or 2 persons per room standard
 
-  const hotelTotalINR = hotel.pricePerNightINR * nightsCount * roomCount;
+  let hotelTotalINR = hotel.pricePerNightINR * nightsCount * roomCount;
+  if (hotel.liveOffer && hotel.liveOffer.totalStayPrice > 0) {
+    hotelTotalINR = Math.round(hotel.liveOffer.totalStayPrice);
+  }
   const transportTotalINR = transport.totalCostINR;
   const activitiesTotalINR = activities.reduce((sum, act) => sum + (act.costPerPersonINR * trip.travelerCount), 0);
   const diningTotalINR = dining.costPerPersonINR * trip.travelerCount;

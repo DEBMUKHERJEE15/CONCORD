@@ -106,6 +106,7 @@ export interface TripSetup {
   departureDate: string;
   returnDate: string;
   travelerCount: number;
+  roomCount?: number;
   sharedBudgetINR: number;
   currency: "INR" | "USD" | "EUR";
   tripType: TripType;
@@ -121,12 +122,205 @@ export interface TripSetup {
     transportTotalCostINR?: number;
     activityBudgetPerPersonINR?: number;
   };
+  selectedHotel?: SelectedHotelState;
+  budgetCalculation?: TripBudgetCalculation;
+  hotelSearchRadiusKm?: number;
 }
 
 export type InventoryTag =
   | "DEMO DATA — NOT LIVE PRICES"
   | "MANUAL ESTIMATES — NOT LIVE PRICES"
-  | "VERIFIED DATA — LIVE PROVIDER";
+  | "VERIFIED DATA — LIVE PROVIDER"
+  | "DIRECTORY LISTING — NO PRICE";
+
+export type HotelAccommodationType =
+  | "hotel"
+  | "hostel"
+  | "guest_house"
+  | "motel"
+  | "apartment"
+  | "resort"
+  | "bed_and_breakfast"
+  | "other";
+
+export type HotelPriceStatus =
+  | "directory_only"
+  | "price_unavailable"
+  | "live_offer"
+  | "user_estimate"
+  | "demo_estimate";
+
+export interface HotelOfferLive {
+  offerId: string;
+  propertyId: string;
+  propertyName: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  roomQuantity: number;
+  adults: number;
+  roomType?: string;
+  roomDescription?: string;
+  bedType?: string;
+  mealPlan?: string;
+  pricePerNight: number;
+  totalStayPrice: number;
+  currency: string;
+  taxesAndFees?: number;
+  taxesIncluded: boolean;
+  cancellationPolicy?: string;
+  pricingTimestamp: string;
+  expiresAt?: string;
+  isExpired?: boolean;
+  source: "amadeus" | "direct" | "mock_provider";
+  rateRuleExplanation?: string;
+}
+
+export interface HotelUserEstimate {
+  nightlyRateINR: number;
+  currency: string;
+  estimatedBy: "user";
+  timestamp: string;
+  notes?: string;
+}
+
+export interface HotelDirectoryItem {
+  id: string; // e.g. "osm-node-12345" or "osm-way-67890"
+  osmId: number | string;
+  osmType: "node" | "way" | "relation";
+  name: string;
+  accommodationType: HotelAccommodationType;
+  latitude: number;
+  longitude: number;
+  distanceKm?: number;
+  address?: {
+    street?: string;
+    houseNumber?: string;
+    postcode?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    fullText?: string;
+  };
+  contact?: {
+    phone?: string;
+    website?: string;
+    email?: string;
+  };
+  stars?: number;
+  rooms?: number;
+  wheelchairAccessible?: boolean;
+  amenities?: string[];
+  rawTags?: Record<string, string>;
+  source: "osm" | "amadeus" | "demo" | "custom";
+  attribution: string;
+  priceStatus: HotelPriceStatus;
+  liveOffer?: HotelOfferLive;
+  userEstimate?: HotelUserEstimate;
+}
+
+export interface SelectedHotelState {
+  directoryItem: HotelDirectoryItem;
+  selectedOffer?: HotelOfferLive;
+  userEstimate?: HotelUserEstimate;
+  totalStayINR: number;
+  priceStatus: HotelPriceStatus;
+  checkInDate: string;
+  checkOutDate: string;
+  roomCount: number;
+  guestsCount: number;
+  distanceKm?: number;
+}
+
+export interface HotelSearchFilters {
+  query?: string;
+  radiusKm: number; // 2, 5, 10, 25
+  accommodationType?: HotelAccommodationType | "all";
+  maxBudgetINR?: number;
+  minStars?: number;
+  maxStars?: number;
+  checkInDate: string;
+  checkOutDate: string;
+  guests: number;
+  rooms: number;
+  sortBy: "distance" | "price" | "name" | "stars";
+  sortDirection?: "asc" | "desc";
+  requiredAmenities?: string[];
+}
+
+export interface HotelSearchResponse {
+  destination: string;
+  coordinates: [number, number]; // [lat, lon]
+  radiusKm: number;
+  totalFound: number;
+  hotels: HotelDirectoryItem[];
+  source: "osm_overpass" | "cache" | "demo_fallback";
+  attribution: string;
+  amadeusConfigured: boolean;
+  amadeusNotice?: string;
+  warning?: string;
+}
+
+export interface TripBudgetCalculation {
+  currency: string;
+  travelerCount: number;
+  roomCount: number;
+  nightsCount: number;
+  categories: {
+    transport: {
+      amountINR: number;
+      status: "verified" | "demo" | "estimate" | "missing";
+      label: string;
+    };
+    accommodation: {
+      amountINR: number;
+      status: "verified_live" | "demo" | "user_estimate" | "missing";
+      label: string;
+      details?: {
+        hotelName: string;
+        perNightINR: number;
+        nights: number;
+        rooms: number;
+        taxesIncluded: boolean;
+        source: string;
+      };
+    };
+    activities: {
+      amountINR: number;
+      status: "verified" | "demo" | "estimate" | "missing";
+      label: string;
+    };
+    dining: {
+      amountINR: number;
+      status: "demo" | "estimate" | "missing";
+      label: string;
+    };
+    localTransport: {
+      amountINR: number;
+      status: "demo" | "estimate" | "missing";
+      label: string;
+    };
+    taxesAndFees: {
+      amountINR: number;
+      status: "calculated" | "included_in_items" | "none";
+      label: string;
+    };
+    contingency: {
+      amountINR: number;
+      percent: number;
+      status: "estimate";
+      label: string;
+    };
+  };
+  totalTripCostINR: number;
+  costPerTravelerINR: number;
+  sharedBudgetINR: number;
+  remainingBudgetINR: number;
+  isOverBudget: boolean;
+  budgetOverrunINR: number;
+  formulaExplanation: string;
+  unpricedItemsNotice?: string;
+}
 
 // Demo Inventory Offer Types (Clearly Marked DEMO DATA)
 export interface HotelOffer {
@@ -142,6 +336,10 @@ export interface HotelOffer {
   comfortScore: number; // 1-10
   transitAccessibilityScore: number; // 1-10
   tag: InventoryTag;
+  distanceKm?: number;
+  priceStatus?: HotelPriceStatus;
+  osmDirectoryItem?: HotelDirectoryItem;
+  liveOffer?: HotelOfferLive;
 }
 
 export interface TransportOffer {

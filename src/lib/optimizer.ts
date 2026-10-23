@@ -20,6 +20,7 @@ import {
   calculateItineraryCostsAndMetrics,
   computeTravelerSatisfaction,
 } from "./scoring";
+import { directoryItemToHotelOffer } from "./hotels/hotel-normalizer";
 
 export interface CandidateBlueprint {
   id: string;
@@ -260,11 +261,25 @@ export function buildItineraryCandidate(
   const matchingActivities = offers.activities;
   const matchingDining = offers.dining;
 
-  const hotel =
-    matchingHotels.find((h) => h.id === blueprint.hotelId) ||
-    DEMO_HOTELS.find((h) => h.id === blueprint.hotelId) ||
-    matchingHotels[0] ||
-    DEMO_HOTELS[0];
+  let hotel: HotelOffer;
+  if (
+    trip.selectedHotel &&
+    (blueprint.strategy === "best_balanced" ||
+      blueprint.hotelId === trip.selectedHotel.directoryItem.id)
+  ) {
+    hotel = directoryItemToHotelOffer(
+      trip.selectedHotel.directoryItem,
+      trip.destination,
+      trip.selectedHotel.selectedOffer,
+      trip.selectedHotel.userEstimate
+    );
+  } else {
+    hotel =
+      matchingHotels.find((h) => h.id === blueprint.hotelId) ||
+      DEMO_HOTELS.find((h) => h.id === blueprint.hotelId) ||
+      matchingHotels[0] ||
+      DEMO_HOTELS[0];
+  }
 
   const transport =
     matchingTransports.find((t) => t.id === blueprint.transportId) ||

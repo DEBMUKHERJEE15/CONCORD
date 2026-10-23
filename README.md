@@ -247,13 +247,86 @@ Test coverage includes:
 }
 ```
 
-### 3. Preference Interpretation
+### 3. Worldwide Hotel Discovery
+`GET /api/hotels/search?lat={lat}&lon={lon}&radiusKm={2|5|10|25}&accommodationType={type}`
+- Queries OpenStreetMap Overpass API around destination coordinates.
+- Returns deduplicated hotels with Haversine distance, mapped amenities, address, contact links, and attribution.
+- In-memory cache protects public Overpass servers.
+
+### 4. Live Hotel Offers & User Estimates
+`POST /api/hotels/offers`
+- Optional live room rates via Amadeus Self-Service APIs (`v3/shopping/hotel-offers`).
+- Accommodates user manual nightly estimates when live rates are unconfigured.
+
+### 5. Preference Interpretation
 `POST /api/negotiate/parse-preferences`
 - Analyzes traveler notes and identifies conflicting dimensions using the Preference & Group Agent.
 
-### 4. Full Group Negotiation Workflow
+### 6. Full Group Negotiation Workflow
 `POST /api/negotiate`
 - Orchestrates deterministic optimization, multi-round negotiation proposals, trade-off ledger accounting, and validation.
+
+---
+
+## 🏨 Worldwide Hotel Discovery & Deterministic Budgeting
+
+### 1. Free Worldwide Hotel Directory (No Key Required)
+Concord integrates the public OpenStreetMap Overpass API (`https://overpass-api.de/api/interpreter`) to discover mapped accommodation worldwide around destination coordinates resolved by Photon.
+- **Supported tags**: `tourism=hotel`, `tourism=hostel`, `tourism=guest_house`, `tourism=motel`, `tourism=apartment`, `tourism=resort`, `tourism=bed_and_breakfast`.
+- **Configurable radius**: 2 km (center), 5 km (area), 10 km (district), 25 km (region).
+- **Attribution**: Clearly attributed to OpenStreetMap contributors under ODbL.
+- **Rule compliance**: Missing hotel names, coordinates, or ratings are **never fabricated**.
+
+### 2. Optional Live Hotel Pricing (Amadeus Integration)
+- Server-side environment variables: `AMADEUS_CLIENT_ID`, `AMADEUS_CLIENT_SECRET`, `AMADEUS_BASE_URL`.
+- If configured: fetches verified live room offers via `GET /v3/shopping/hotel-offers`.
+- If unconfigured or unavailable: graceful fallback to OpenStreetMap directory with clear badge: *"Price Not Available — Directory Listing Only"*. Users can provide a manual estimate tagged `USER ESTIMATE — NOT LIVE PRICES`.
+
+### 3. Exact Money Calculation
+Concord implements an authoritative deterministic budget calculator independent of the LLM:
+$$\text{totalTripCost} = \text{transport} + \text{accommodation} + \text{activities} + \text{food} + \text{localTransport} + \text{additionalFees} + \text{contingency}$$
+$$\text{remainingBudget} = \text{groupBudget} - \text{totalTripCost}$$
+- **Integer Minor Units**: Calculations use paisa/cents integer math to eliminate floating-point drift.
+- **Double-Counting Prevention**: Taxes already included in hotel rates are not counted twice.
+- **Contingency Buffer**: Explicitly labeled 5% safety buffer for unplanned expenses.
+
+---
+
+## 🧪 Comprehensive Automated Test Suites (45 Tests Passing)
+
+Run tests locally:
+```bash
+npm test
+```
+
+### Suite 1: Master Criteria (`tests/concord.test.ts` — 25 Tests)
+- Tokyo, Paris, Kolkata Photon geocoding normalization & coordinate preservation
+- Throttling & network outage fallback
+- Strict cross-destination offer isolation (Goa, Jaipur, Tokyo, Paris, Kolkata, London)
+- Deterministic cost summation and per-traveler equality
+- Hard constraint validation: budget ceilings, accessibility, mandatory rest, satisfaction floors
+
+### Suite 2: Hotel Discovery, Live Pricing & Budgeting (`tests/hotels.test.ts` — 20 Tests)
+1. Searching for hotels around a valid destination.
+2. Empty and failed Overpass responses.
+3. Missing hotel names or coordinates skipped without fabrication.
+4. Duplicate hotel records deduplicated by OSM ID & proximity.
+5. Hotel with no price labeled as directory-only.
+6. Hotel with a real returned provider offer.
+7. Different check-in and check-out dates calculation.
+8. Multiple rooms and guests scaling.
+9. Taxes included versus excluded handling.
+10. Currency conversion transparency (EUR, USD, INR).
+11. Missing Amadeus credentials error handling.
+12. Invalid provider credentials error handling.
+13. Expired offers detection.
+14. Destination changes invalidating previous hotel selections.
+15. Correct total-trip and per-traveler costs.
+16. Over-budget itinerary rejection and deficit flagging.
+17. Renegotiation after hotel selection.
+18. Saved-plan persistence with hotel state.
+19. Mobile hotel results and filters.
+20. Production build module exports verification.
 
 ---
 
@@ -269,10 +342,12 @@ Deploy to Render in under 3 minutes:
 4. Set Environment Variables:
    - `GEMMA_API_KEY`: Your hosted Gemma API key.
    - `GEMMA_MODEL`: `gemma-4-26b-a4b-it`
+   - `AMADEUS_CLIENT_ID`: (Optional) Amadeus Client ID for live rates.
+   - `AMADEUS_CLIENT_SECRET`: (Optional) Amadeus Client Secret.
 5. Click **Deploy**.
 
 ---
 
 ## 📜 License & Disclaimers
 
-All catalog items are simulated and clearly marked **"DEMO DATA — NOT LIVE PRICES"** or **"MANUAL ESTIMATES — NOT LIVE PRICES"**. Place search is powered by Photon and OpenStreetMap data. Built with Google Gemma 4.
+All catalog items are clearly marked **"DEMO DATA — NOT LIVE PRICES"**, **"MANUAL ESTIMATES — NOT LIVE PRICES"**, or **"VERIFIED DATA — LIVE PROVIDER"**. Place search is powered by Photon and OpenStreetMap data. Built with Google Gemma 4.

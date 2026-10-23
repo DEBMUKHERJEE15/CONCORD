@@ -9,6 +9,9 @@ import {
   AccommodationPreferenceType,
 } from "@/types";
 import { DestinationAutocomplete } from "./DestinationAutocomplete";
+import { HotelsSection } from "./HotelsSection";
+import { BudgetBreakdownCard } from "./BudgetBreakdownCard";
+import { calculateTripBudget, calculateNightsBetween } from "../lib/hotels/budget-calculator";
 import {
   MapPin,
   Calendar,
@@ -52,9 +55,20 @@ export function TripPlannerStepper({
   onParseNotesWithAI,
   isParsingNotes,
 }: TripPlannerStepperProps) {
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [expandedTravelerId, setExpandedTravelerId] = useState<string | null>(travelers[0]?.id || null);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const realTimeBudget = React.useMemo(() => {
+    return calculateTripBudget({
+      travelerCount: trip.travelerCount,
+      roomCount: trip.roomCount,
+      departureDate: trip.departureDate,
+      returnDate: trip.returnDate,
+      sharedBudgetINR: trip.sharedBudgetINR,
+      selectedHotel: trip.selectedHotel,
+    });
+  }, [trip]);
 
   // Sync traveler count when travelers are added or removed
   const handleAddTraveler = () => {
@@ -186,12 +200,13 @@ export function TripPlannerStepper({
           </span>
           <h2 className="font-serif text-xl font-bold text-slate-100 mt-1">
             {currentStep === 1 && "Step 1: Trip Basics & Parameters"}
-            {currentStep === 2 && "Step 2: Traveler Profiles & Constraints"}
-            {currentStep === 3 && "Step 3: Conflict Review & Optimization"}
+            {currentStep === 2 && "Step 2: Worldwide Hotel Discovery & Stays"}
+            {currentStep === 3 && "Step 3: Traveler Profiles & Constraints"}
+            {currentStep === 4 && "Step 4: Deterministic Budget Audit & Optimization"}
           </h2>
         </div>
 
-        {/* 3 Step Indicator Pills */}
+        {/* 4 Step Indicator Pills */}
         <div className="flex items-center space-x-2 text-xs">
           <button
             onClick={() => setCurrentStep(1)}
@@ -205,7 +220,7 @@ export function TripPlannerStepper({
           >
             1
           </button>
-          <div className={`w-6 h-0.5 ${currentStep >= 2 ? "bg-emerald-500" : "bg-slate-700"}`} />
+          <div className={`w-4 sm:w-6 h-0.5 ${currentStep >= 2 ? "bg-emerald-500" : "bg-slate-700"}`} />
           <button
             onClick={() => validateStep1() && setCurrentStep(2)}
             className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
@@ -218,16 +233,29 @@ export function TripPlannerStepper({
           >
             2
           </button>
-          <div className={`w-6 h-0.5 ${currentStep === 3 ? "bg-emerald-500" : "bg-slate-700"}`} />
+          <div className={`w-4 sm:w-6 h-0.5 ${currentStep >= 3 ? "bg-emerald-500" : "bg-slate-700"}`} />
           <button
             onClick={() => validateStep1() && setCurrentStep(3)}
             className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
               currentStep === 3
                 ? "bg-emerald-600 text-slate-950"
+                : currentStep > 3
+                ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300"
                 : "bg-slate-800 text-slate-400 border border-slate-700"
             }`}
           >
             3
+          </button>
+          <div className={`w-4 sm:w-6 h-0.5 ${currentStep === 4 ? "bg-emerald-500" : "bg-slate-700"}`} />
+          <button
+            onClick={() => validateStep1() && setCurrentStep(4)}
+            className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
+              currentStep === 4
+                ? "bg-emerald-600 text-slate-950"
+                : "bg-slate-800 text-slate-400 border border-slate-700"
+            }`}
+          >
+            4
           </button>
         </div>
       </div>
@@ -276,6 +304,7 @@ export function TripPlannerStepper({
                     ...trip,
                     destination: text,
                     destinationDetails: details,
+                    selectedHotel: undefined, // Invalidate previous hotel selection on destination change
                   });
                 }}
                 theme="dark"
@@ -433,7 +462,54 @@ export function TripPlannerStepper({
             <button
               type="button"
               onClick={handleNextFromStep1}
-              className="px-5 py-2.5 rounded-lg bg-forest-800 text-white font-bold text-xs hover:bg-forest-900 transition-colors flex items-center space-x-1.5 shadow-xs"
+              className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center space-x-1.5 shadow"
+            >
+              <span>Next: Worldwide Hotels & Lodging</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= STEP 2: WORLDWIDE HOTEL DISCOVERY & STAYS ================= */}
+      {currentStep === 2 && (
+        <div className="space-y-4">
+          <HotelsSection
+            trip={trip}
+            onSelectHotel={(sel) => onChangeTrip({ ...trip, selectedHotel: sel })}
+            onUpdateRoomCount={(rooms) => {
+              onChangeTrip({
+                ...trip,
+                roomCount: rooms,
+                selectedHotel: trip.selectedHotel
+                  ? {
+                      ...trip.selectedHotel,
+                      roomCount: rooms,
+                      totalStayINR: trip.selectedHotel.userEstimate
+                        ? trip.selectedHotel.userEstimate.nightlyRateINR *
+                          calculateNightsBetween(trip.departureDate, trip.returnDate) *
+                          rooms
+                        : trip.selectedHotel.totalStayINR,
+                    }
+                  : undefined,
+              });
+            }}
+          />
+
+          <div className="flex items-center justify-between pt-4 border-t border-slate-700/60">
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Trip Basics</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentStep(3)}
+              className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center space-x-1.5 shadow"
             >
               <span>Next: Traveler Preferences</span>
               <ArrowRight className="w-4 h-4" />
@@ -442,8 +518,8 @@ export function TripPlannerStepper({
         </div>
       )}
 
-      {/* ================= STEP 2: TRAVELER PREFERENCES & HARD CONSTRAINTS ================= */}
-      {currentStep === 2 && (
+      {/* ================= STEP 3: TRAVELER PREFERENCES & HARD CONSTRAINTS ================= */}
+      {currentStep === 3 && (
         <div className="space-y-4 text-xs">
           {/* Explanation Banner: Hard Constraint vs Soft Preference */}
           <div className="p-3.5 bg-forest-50/70 border border-forest-200 rounded-xl text-forest-950 text-xs flex items-start space-x-2.5">
@@ -742,63 +818,73 @@ export function TripPlannerStepper({
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"
-              onClick={() => setCurrentStep(1)}
-              className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1"
+              onClick={() => setCurrentStep(2)}
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Basics</span>
+              <span>Back to Hotel Discovery</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setCurrentStep(3)}
-              className="px-5 py-2.5 rounded-lg bg-forest-800 text-white font-bold text-xs hover:bg-forest-900 transition-colors flex items-center space-x-1.5 shadow-xs"
+              onClick={() => setCurrentStep(4)}
+              className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center space-x-1.5 shadow"
             >
-              <span>Next: Review & Conflict Audit</span>
+              <span>Next: Budget Audit & Review</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* ================= STEP 3: REVIEW & START NEGOTIATION ================= */}
-      {currentStep === 3 && (
-        <div className="space-y-4 text-xs">
+      {/* ================= STEP 4: BUDGET AUDIT & START NEGOTIATION ================= */}
+      {currentStep === 4 && (
+        <div className="space-y-6 text-xs">
           {/* Summary matrix */}
-          <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-3">
-            <h3 className="font-serif text-sm font-bold text-forest-950">
-              Trip Overview & Group Roster
+          <div className="bg-[#131d33] p-4 rounded-xl border border-slate-700/60 space-y-3 text-slate-200">
+            <h3 className="font-serif text-sm font-bold text-white">
+              Trip Overview & Group Parameters
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
               <div>
-                <span className="text-stone-400 block text-[9px] uppercase">Route:</span>
-                <strong>{trip.origin} → {trip.destination}</strong>
+                <span className="text-slate-400 block text-[9px] uppercase">Route:</span>
+                <strong className="text-white">{trip.origin} → {trip.destination}</strong>
               </div>
               <div>
-                <span className="text-stone-400 block text-[9px] uppercase">Dates:</span>
-                <strong>{trip.departureDate} to {trip.returnDate}</strong>
+                <span className="text-slate-400 block text-[9px] uppercase">Dates:</span>
+                <strong className="text-white">{trip.departureDate} to {trip.returnDate}</strong>
               </div>
               <div>
-                <span className="text-stone-400 block text-[9px] uppercase">Shared Budget:</span>
-                <strong className="font-mono text-forest-900">₹{trip.sharedBudgetINR.toLocaleString("en-IN")}</strong>
+                <span className="text-slate-400 block text-[9px] uppercase">Shared Budget:</span>
+                <strong className="font-mono text-emerald-400 font-bold">
+                  ₹{trip.sharedBudgetINR.toLocaleString("en-IN")}
+                </strong>
               </div>
               <div>
-                <span className="text-stone-400 block text-[9px] uppercase">Travelers:</span>
-                <strong>{travelers.length} members</strong>
+                <span className="text-slate-400 block text-[9px] uppercase">Travelers & Rooms:</span>
+                <strong className="text-white">
+                  {travelers.length} members • {trip.roomCount || Math.ceil(travelers.length / 2)} rooms
+                </strong>
               </div>
             </div>
           </div>
 
+          {/* Real-time Deterministic Budget Breakdown Card */}
+          <BudgetBreakdownCard
+            budget={realTimeBudget}
+            sharedBudgetINR={trip.sharedBudgetINR}
+          />
+
           {/* Pre-Negotiation Detected Conflicts */}
-          <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-2">
-            <div className="flex items-center space-x-2 text-amber-900 font-bold">
-              <AlertTriangle className="w-4 h-4 text-amber-700" />
-              <span>Detected Group Friction Points (To Be Negotiated):</span>
+          <div className="bg-amber-950/30 border border-amber-600/30 rounded-xl p-4 space-y-2">
+            <div className="flex items-center space-x-2 text-amber-300 font-bold">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Detected Group Friction Points (To Be Resolved by Gemma 4):</span>
             </div>
-            <ul className="space-y-1.5 text-[11px] text-amber-950">
+            <ul className="space-y-1.5 text-[11px] text-amber-200/90">
               {detectedPreConflicts.map((c, idx) => (
                 <li key={idx} className="flex items-start gap-2">
-                  <span className="font-bold text-amber-700 mt-0.5">•</span>
+                  <span className="font-bold text-amber-400 mt-0.5">•</span>
                   <span>{c}</span>
                 </li>
               ))}
@@ -808,18 +894,18 @@ export function TripPlannerStepper({
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"
-              onClick={() => setCurrentStep(2)}
-              className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1"
+              onClick={() => setCurrentStep(3)}
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Edit Preferences</span>
+              <span>Back to Preferences</span>
             </button>
 
             <button
               type="button"
               disabled={isLoading}
               onClick={onStartNegotiation}
-              className="px-6 py-3 rounded-xl bg-forest-800 text-white font-bold text-xs hover:bg-forest-900 transition-all flex items-center space-x-2 shadow-md active:scale-[0.98] disabled:opacity-50"
+              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all flex items-center space-x-2 shadow-lg active:scale-[0.98] disabled:opacity-50"
             >
               {isLoading ? (
                 <>
